@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#1a1a2e">
+<title>DeepSeek Chat</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --panel: #171a23;
+    --bubble-user: linear-gradient(135deg, #2563eb, #1d4ed8);
+    --bubble-ai: #22263a;
+    --text: #e8eaf2;
+    --text-dim: #8b90a3;
+    --accent: #2563eb;
+    --border: #2a2f42;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+    overflow: hidden;
+  }
+  header {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 16px;
+    padding-top: calc(14px + env(safe-area-inset-top));
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+  }
+  .logo {
+    width: 34px; height: 34px; border-radius: 9px;
+    background: linear-gradient(135deg, #3b82f6, #6366f1);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 15px; color: #fff;
+  }
+  header h1 { font-size: 16px; font-weight: 600; flex: 1; }
+  .status { font-size: 11px; color: var(--text-dim); display: flex; align-items: center; gap: 5px; }
+  .status::before {
+    content: ''; width: 8px; height: 8px; border-radius: 50%;
+    background: #22c55e; box-shadow: 0 0 6px rgba(34,197,94,.8);
+  }
+  .clear-btn {
+    border: 1px solid var(--border); background: transparent; color: var(--text-dim);
+    border-radius: 8px; padding: 6px 10px; font-size: 12px; cursor: pointer;
+  }
+  .clear-btn:active { opacity: .7; }
+  #messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 14px calc(16px + env(safe-area-inset-bottom));
+    -webkit-overflow-scrolling: touch;
+  }
+  .msg { display: flex; margin-bottom: 14px; animation: fadeIn .25s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  .msg .avatar {
+    flex: none; width: 30px; height: 30px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; margin-right: 8px; font-weight: 600;
+  }
+  .msg.user { justify-content: flex-end; }
+  .msg.user .avatar { display: none; }
+  .msg.ai .avatar { background: linear-gradient(135deg, #3b82f6, #6366f1); color: #fff; }
+  .bubble {
+    max-width: 82%;
+    padding: 10px 13px;
+    border-radius: 14px;
+    font-size: 15px;
+    line-height: 1.65;
+    word-break: break-word;
+    white-space: pre-wrap;
+  }
+  .msg.user .bubble { background: var(--bubble-user); color: #fff; border-bottom-right-radius: 4px; }
+  .msg.ai .bubble { background: var(--bubble-ai); color: var(--text); border-bottom-left-radius: 4px; }
+  .bubble pre {
+    background: #10131c; border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px; overflow-x: auto; margin: 8px 0; font-size: 13px;
+    white-space: pre-wrap; word-break: break-word;
+  }
+  .bubble code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+  .bubble p { margin: 0 0 8px; }
+  .bubble p:last-child { margin-bottom: 0; }
+  .cursor { display: inline-block; width: 2px; height: 16px; background: var(--accent); vertical-align: -2px; animation: blink .9s infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .typing { display: inline-flex; gap: 4px; padding: 4px 2px; }
+  .typing span { width: 7px; height: 7px; border-radius: 50%; background: var(--text-dim); animation: bounce 1.2s infinite; }
+  .typing span:nth-child(2) { animation-delay: .15s; }
+  .typing span:nth-child(3) { animation-delay: .3s; }
+  @keyframes bounce { 0%, 60%, 100% { transform: translateY(0); opacity: .5; } 30% { transform: translateY(-5px); opacity: 1; } }
+  .err { color: #f87171; font-size: 13px; padding: 4px 2px; }
+  footer {
+    flex: none;
+    border-top: 1px solid var(--border);
+    background: var(--panel);
+    padding: 10px 12px;
+    padding-bottom: calc(10px + env(safe-area-inset-bottom));
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+  }
+  textarea {
+    flex: 1;
+    resize: none;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    border-radius: 12px;
+    padding: 11px 14px;
+    font-size: 15px;
+    font-family: inherit;
+    line-height: 1.4;
+    max-height: 120px;
+    outline: none;
+  }
+  textarea:focus { border-color: var(--accent); }
+  #send {
+    flex: none;
+    border: none;
+    background: var(--accent);
+    color: #fff;
+    border-radius: 12px;
+    width: 46px; height: 46px;
+    font-size: 20px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #send:disabled { opacity: .5; cursor: not-allowed; }
+  .hint {
+    flex: none;
+    text-align: center;
+    font-size: 11px;
+    color: var(--text-dim);
+    padding: 6px 0 2px;
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">DS</div>
+  <h1>DeepSeek Chat</h1>
+  <span class="status">在线</span>
+  <button class="clear-btn" id="clearBtn">清空</button>
+</header>
+
+<main id="messages" aria-live="polite"></main>
+
+<footer>
+  <textarea id="input" rows="1" placeholder="输入你的问题，Enter 发送…"></textarea>
+  <button id="send" title="发送">↑</button>
+</footer>
+<div class="hint">由 Vercel 部署 · API Key 安全保存在服务端</div>
+
+<script>
+(function () {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const messagesEl = $('messages');
+  const inputEl = $('input');
+  const sendBtn = $('send');
+
+  const SYSTEM_PROMPT = '你是一个乐于助人的 AI 助手，回答简洁、准确、友好。';
+  const STORAGE_KEY = 'deepseek-chat-history-v1';
+  const MAX_HISTORY = 20;
+
+  let history = [];
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    if (Array.isArray(saved)) history = saved;
+  } catch (e) { /* ignore */ }
+
+  function escapeHtml(str) {
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  function renderMarkdown(text) {
+    let html = escapeHtml(text);
+    // 代码块
+    html = html.replace(/```([\s\S]*?)```/g, function (_, code) {
+      return '<pre><code>' + code + '</code></pre>';
+    });
+    // 行内代码
+    html = html.replace(/`([^`\n]+)`/g, '<code>$1</code>');
+    // 加粗
+    html = html.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>');
+    // 段落与换行
+    html = html.replace(/\n/g, '<br>');
+    return html;
+  }
+
+  function addMessage(role, content) {
+    const wrap = document.createElement('div');
+    wrap.className = 'msg ' + (role === 'user' ? 'user' : 'ai');
+    if (role !== 'user') {
+      const av = document.createElement('div');
+      av.className = 'avatar';
+      av.textContent = 'DS';
+      wrap.appendChild(av);
+    }
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble';
+    bubble.innerHTML = renderMarkdown(content || '');
+    wrap.appendChild(bubble);
+    messagesEl.appendChild(wrap);
+    scrollToBottom();
+    return bubble;
+  }
+
+  function scrollToBottom() {
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  function showTyping() {
+    const wrap = document.createElement('div');
+    wrap.className = 'msg ai';
+    wrap.id = 'typingMsg';
+    const av = document.createElement('div');
+    av.className = 'avatar';
+    av.textContent = 'DS';
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble';
+    bubble.innerHTML = '<span class="typing"><span></span><span></span><span></span></span>';
+    wrap.appendChild(av);
+    wrap.appendChild(bubble);
+    messagesEl.appendChild(wrap);
+    scrollToBottom();
+  }
+
+  function hideTyping() {
+    const el = document.getElementById('typingMsg');
+    if (el) el.remove();
+  }
+
+  function showError(text) {
+    const wrap = document.createElement('div');
+    wrap.className = 'msg ai';
+    const av = document.createElement('div');
+    av.className = 'avatar';
+    av.textContent = 'DS';
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble';
+    bubble.innerHTML = '<div class="err">⚠ ' + escapeHtml(text) + '</div>';
+    wrap.appendChild(av);
+    wrap.appendChild(bubble);
+    messagesEl.appendChild(wrap);
+    scrollToBottom();
+  }
+
+  function saveHistory() {
+    const keep = history.slice(-MAX_HISTORY);
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(keep)); } catch (e) { /* ignore */ }
+  }
+
+  function setBusy(busy) {
+    sendBtn.disabled = busy;
+    inputEl.disabled = busy;
+  }
+
+  async function sendMessage() {
+    const text = inputEl.value.trim();
+    if (!text || sendBtn.disabled) return;
+    inputEl.value = '';
+    inputEl.style.height = 'auto';
+
+    history.push({ role: 'user', content: text });
+    addMessage('user', text);
+    saveHistory();
+
+    const payload = history.slice(-MAX_HISTORY);
+    setBusy(true);
+    showTyping();
+
+    const bubble = addMessage('ai', '');
+    bubble.innerHTML = '<span class="cursor"></span>';
+    let full = '';
+
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'deepseek-chat', messages: payload }),
+      });
+
+      if (!res.ok) {
+        let msg = '请求失败 (' + res.status + ')';
+        try { const j = await res.json(); if (j.error) msg = j.error; } catch (e) { /* ignore */ }
+        throw new Error(msg);
+      }
+      if (!res.body) throw new Error('浏览器不支持流式响应');
+
+      hideTyping();
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, '\n');
+        let idx;
+        while ((idx = buffer.indexOf('\n\n')) !== -1) {
+          const event = buffer.slice(0, idx);
+          buffer = buffer.slice(idx + 2);
+          for (const line of event.split('\n')) {
+            if (!line.startsWith('data:')) continue;
+            const data = line.slice(5).trim();
+            if (!data || data === '[DONE]') continue;
+            try {
+              const j = JSON.parse(data);
+              const delta = j.choices && j.choices[0] && j.choices[0].delta && j.choices[0].delta.content;
+              if (delta) {
+                full += delta;
+                bubble.innerHTML = renderMarkdown(full) + '<span class="cursor"></span>';
+                scrollToBottom();
+              }
+            } catch (e) { /* ignore */ }
+          }
+        }
+      }
+
+      if (!full.trim()) {
+        bubble.innerHTML = '<div class="err">⚠ 模型没有返回内容</div>';
+        history.push({ role: 'assistant', content: '' });
+        saveHistory();
+        return;
+      }
+      bubble.innerHTML = renderMarkdown(full);
+      history.push({ role: 'assistant', content: full });
+      saveHistory();
+      scrollToBottom();
+    } catch (err) {
+      hideTyping();
+      bubble.innerHTML = '';
+      showError(err.message || '网络错误，请稍后重试');
+      // 去掉失败时已加入历史的用户消息，方便重发
+      history.pop();
+      saveHistory();
+    } finally {
+      setBusy(false);
+      inputEl.focus();
+    }
+  }
+
+  // 恢复历史
+  function renderHistory() {
+    messagesEl.innerHTML = '';
+    for (const m of history) addMessage(m.role, m.content || '');
+  }
+
+  // 事件绑定
+  sendBtn.addEventListener('click', sendMessage);
+  inputEl.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+      e.preventDefault();
+      sendMessage();
+    }
+  });
+  inputEl.addEventListener('input', function () {
+    inputEl.style.height = 'auto';
+    inputEl.style.height = Math.min(inputEl.scrollHeight, 120) + 'px';
+  });
+  $('clearBtn').addEventListener('click', function () {
+    if (history.length === 0) return;
+    if (!confirm('确定清空当前对话吗？')) return;
+    history = [];
+    saveHistory();
+    renderHistory();
+    inputEl.focus();
+  });
+
+  renderHistory();
+  inputEl.focus();
+})();
+</script>
+</body>
+</html>
