@@ -326,7 +326,9 @@
           canvas.width = width;
           canvas.height = height;
           canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-          canvas.toBlob((blob) => { URL.revokeObjectURL(url); blob ? resolve(blob) : reject(new Error('图片压缩失败')); }, 'image/jpeg', 0.82);
+          try { resolve(canvas.toDataURL('image/jpeg', 0.82)); }
+          catch (e) { reject(new Error('图片压缩失败')); }
+          finally { URL.revokeObjectURL(url); }
         } catch (e) { URL.revokeObjectURL(url); reject(e); }
       };
       img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('无法读取图片')); };
@@ -340,9 +342,8 @@
     setBusyUI(true, '正在保存照片…');
     try {
       const compressed = await compressImage(file);
-      const body = new FormData();
-      body.append('image', compressed, file.name.replace(/[^a-zA-Z0-9._-]/g, '_') || 'note.jpg');
-      const res = await api('/api/notes', { method: 'POST', body });
+      const body = JSON.stringify({ image: compressed, filename: file.name });
+      const res = await api('/api/notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || '上传失败');
       if (data.status === 'synced') {

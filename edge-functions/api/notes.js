@@ -18,7 +18,17 @@ export async function onRequestPost(context) {
   if (denied) return json(401, denied);
   let file;
   try {
-    file = (await context.request.formData()).get('image');
+    const ct = context.request.headers.get('content-type') || '';
+    if (ct.includes('application/json')) {
+      const payload = await context.request.json();
+      const match = /^data:([^;,]+);base64,(.+)$/.exec(payload.image || '');
+      if (match) {
+        const binary = atob(match[2]);
+        const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
+        file = new File([bytes], (payload.filename || 'note.jpg').replace(/[^a-zA-Z0-9._-]/g, '_') || 'note.jpg', { type: match[1] });
+      }
+    }
+    if (!file) file = (await context.request.formData()).get('image');
   } catch {
     return json(400, { error: '无法读取上传的图片' });
   }

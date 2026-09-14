@@ -1,0 +1,59 @@
+{
+  "version": "2.1",
+  "envId": "{{env.TCB_ENV_ID}}",
+  "region": "ap-shanghai",
+  "functionRoot": "./cloud-functions",
+  "functions": [
+    {
+      "name": "api",
+      "runtime": "Nodejs18.15",
+      "timeout": 60,
+      "memorySize": 256,
+      "installDependency": true,
+      "envVariables": {
+        "DEEPSEEK_API_KEY": "{{env.DEEPSEEK_API_KEY}}",
+        "FEISHU_APP_ID": "{{env.FEISHU_APP_ID}}",
+        "FEISHU_APP_SECRET": "{{env.FEISHU_APP_SECRET}}",
+        "FEISHU_WIKI_NODE": "{{env.FEISHU_WIKI_NODE}}",
+        "ACCESS_CODE": "{{env.ACCESS_CODE}}",
+        "DEEPSEEK_THINKING": "{{env.DEEPSEEK_THINKING}}"
+      }
+    }
+  ],
+  "hosting": [
+    {
+      "name": "web",
+      "root": ".",
+      "framework": "static",
+      "outputDir": ".",
+      "deployPath": "/",
+      "ignore": [
+        "node_modules",
+        ".git",
+        "edge-functions",
+        "scripts",
+        "cloud-functions",
+        "cloudbaserc.json",
+        "README.md",
+        "package.json",
+        "package-lock.json",
+        ".env",
+        ".env.local",
+        ".env.*",
+        "tests"
+      ]
+    }
+  ],
+  "gateway": {
+    "routes": [
+      {
+        "path": "/api",
+        "target": "function:api"
+      },
+      {
+        "path": "/",
+        "target": "hosting:web"
+      }
+    ]
+  }
+}

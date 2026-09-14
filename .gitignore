@@ -5,3 +5,6 @@ node_modules/
 .env
 .env.local
 .env.*.local
+
+# CloudBase
+cloud-functions/api/node_modules/
