@@ -81,18 +81,27 @@ export async function processNote(env, id) {
     result = await transcribe(bytes, note.mime, env);
     note.text = result.markdown;
   }
-  // 标题统一追加年月日后缀（幂等：已有日期后缀会被替换）
-  note.title = titleWithDate(note.title || '手写笔记', note.created_at || new Date().toISOString());
+  // 先用 DeepSeek 生成的标题（若有），再统一追加年月日后缀（幂等）
+  note.title = titleWithDate(result?.title || note.title || '手写笔记', note.created_at || new Date().toISOString());
 
   const filename = `note_${id}.jpg`;
-  const synced = await syncToFeishu(env, bytes, note.mime, filename, note.text, note.title, note);
-  note.doc_id = synced.doc_id;
-  note.wiki_url = synced.wiki_url;
-  note.image_block_id = synced.image_block_id;
-  note.status = 'synced';
-  note.error = null;
-  await saveNote(env, note);
-  return { status: 'synced', wiki_url: note.wiki_url };
+  try {
+    const synced = await syncToFeishu(env, bytes, note.mime, filename, note.text, note.title, note);
+    note.doc_id = synced.doc_id;
+    note.wiki_url = synced.wiki_url;
+    note.image_block_id = synced.image_block_id;
+    note.status = 'synced';
+    note.error = null;
+    await saveNote(env, note);
+    return { status: 'synced', wiki_url: note.wiki_url };
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : '同步失败';
+    // 飞书文档已创建（即使后续步骤失败）→ partial「已同步，部分未同步」；否则 pending「待同步」
+    note.status = note.doc_id ? 'partial' : 'pending';
+    note.error = detail;
+    await saveNote(env, note);
+    return { status: note.status, error: detail, wiki_url: note.wiki_url || null };
+  }
 }
 
 // 对话修改排版：DeepSeek 重排 Markdown -> 更新飞书（保留原图）-> 更新存储

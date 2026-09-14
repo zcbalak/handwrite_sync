@@ -60,6 +60,7 @@
   .notice.info { background: var(--accent-soft); color: var(--accent); }
   .notice.err { background: #fdecec; color: var(--err); }
   .notice.ok { background: #e8f7ee; color: var(--ok); }
+  .notice.warn { background: #fdf3e3; color: var(--warn); }
   .list { display: flex; flex-direction: column; gap: 10px; }
   .note {
     display: flex; gap: 12px; align-items: stretch; text-align: left; width: 100%;
@@ -309,15 +310,17 @@
     for (const n of visible) {
       const card = document.createElement('div');
       card.className = 'note';
+      const statusCls = n.status === 'synced' ? 'synced' : n.status === 'partial' ? 'pending' : n.error ? 'error' : 'pending';
+      const statusText = n.status === 'synced' ? '已同步飞书'
+        : n.status === 'partial' ? '已同步 · 部分未同步'
+        : n.status === 'pending' ? (n.error ? '待同步 · ' + esc(n.error) : '处理中…') : '待同步';
       card.innerHTML =
         '<img src="/api/notes/' + n.id + '/image" alt="原图" loading="lazy">' +
         '<div class="note-body">' +
           '<div class="note-head"><strong>' + esc(n.title) + '</strong><time>' + fmtDate(n.created_at) + '</time></div>' +
           '<p>' + esc((n.text || '原图已保存，等待识别文字').slice(0, 60)) + '</p>' +
           '<div class="note-foot">' +
-            '<span class="note-status ' + (n.status === 'synced' ? 'synced' : n.error ? 'error' : 'pending') + '">' +
-              (n.status === 'synced' ? '已同步飞书' : n.status === 'pending' ? (n.error ? '待同步 · ' + esc(n.error) : '处理中…') : '待同步') +
-            '</span>' +
+            '<span class="note-status ' + statusCls + '">' + statusText + '</span>' +
             '<button class="note-del">删除</button>' +
           '</div>' +
         '</div>';
@@ -370,6 +373,8 @@
       if (!res.ok) throw new Error(data.error || '上传失败');
       if (data.status === 'synced') {
         notice('已保存并同步到飞书', 'ok');
+      } else if (data.status === 'partial') {
+        notice('已保存，飞书文档已创建，但部分内容未同步：' + (data.error || '请查看详情并重试'), 'err');
       } else {
         notice('原图已保存，但尚未同步：' + (data.error || '请查看笔记详情并重试'), 'err');
       }
@@ -415,7 +420,8 @@
   function openDeleteModal(note) {
     deleteTarget = note || selected;
     if (!deleteTarget) return;
-    const synced = deleteTarget.status === 'synced' && !!(deleteTarget.doc_id || deleteTarget.wiki_url);
+    // 只要存在飞书文档（无论是否完全同步）就提供“同时删除飞书文档”选项
+    const synced = !!(deleteTarget.doc_id || deleteTarget.wiki_url);
     $('delBoth').hidden = !synced;
     $('deleteModalDesc').textContent = synced
       ? '删除后将无法恢复。这篇笔记已同步到飞书，是否同时删除飞书文档？'
@@ -451,6 +457,12 @@
     if (selected.status === 'synced') {
       hint.innerHTML = '';
       retry.hidden = true;
+    } else if (selected.status === 'partial') {
+      hint.className = 'notice warn';
+      hint.innerHTML = '已同步到飞书，但部分内容未同步：' + esc(selected.error || '请重新同步补全内容');
+      retry.hidden = false;
+      retry.disabled = busy;
+      retry.textContent = busy ? '正在同步…' : '重新同步到飞书';
     } else {
       hint.className = 'notice err';
       hint.innerHTML = selected.error ? '尚未同步飞书：' + esc(selected.error) : '正在处理…';
@@ -513,6 +525,7 @@
     try {
       const data = await apiJson('/api/notes/' + selected.id + '/retry', { method: 'POST' });
       if (data.status === 'synced') notice('已同步到飞书', 'ok');
+      else if (data.status === 'partial') notice('飞书文档已创建，但仍有部分未同步：' + (data.error || ''), 'err');
       else notice(data.error || '仍未同步，请稍后重试', 'err');
       await refresh();
       const fresh = notes.find((n) => n.id === selected.id);

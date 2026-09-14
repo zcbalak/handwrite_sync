@@ -216,16 +216,27 @@ export async function syncToFeishu(env, bytes, mime, filename, text, title, note
     if (!node?.obj_token) throw new Error('飞书已建页面，但没有返回文档标识');
     doc = node.obj_token;
     wikiUrl = `https://my.feishu.cn/wiki/${node.node_token}`;
+    // 文档已创建：立刻标记，即使后续步骤失败也显示「已同步，部分未同步」，并避免重试时重复建文档
+    note.doc_id = doc;
+    note.wiki_url = wikiUrl;
+    note.sync_step = 'node';
   }
 
   if (!block) {
-    await appendBlocks(doc, auth, text, null);
+    // 分阶段进度标记：防止重试时重复追加文字块
+    const blocksDone = note.sync_step === 'blocks' || note.sync_step === 'image' || note.sync_step === 'done';
+    if (!blocksDone) {
+      await appendBlocks(doc, auth, text, null);
+      note.sync_step = 'blocks';
+    }
     const inserted = await feishu(`/docx/v1/documents/${doc}/blocks/${doc}/children`, auth, {
       method: 'POST',
       body: JSON.stringify({ children: [{ block_type: 27, image: {} }] }),
     });
     block = inserted.children?.[0]?.block_id;
     if (!block) throw new Error('飞书图片块创建失败');
+    note.image_block_id = block;
+    note.sync_step = 'image';
   }
 
   // 手动构造 multipart 上传原图（不依赖 FormData/Blob，兼容 EdgeOne Pages 运行时）
@@ -257,6 +268,7 @@ export async function syncToFeishu(env, bytes, mime, filename, text, title, note
     method: 'PATCH',
     body: JSON.stringify({ replace_image: { token: uploaded.data.file_token } }),
   });
+  note.sync_step = 'done';
   return { doc_id: doc, wiki_url: wikiUrl, image_block_id: block };
 }
 
