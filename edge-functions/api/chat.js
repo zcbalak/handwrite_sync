@@ -1,14 +1,13 @@
 // 文件路径 ./edge-functions/api/chat.js
 // 访问路径 example.com/api/chat
 //
-// EdgeOne Pages 边缘函数：把前端请求转发到 DeepSeek API。
-// DeepSeek API Key 只从 Pages 环境变量 DEEPSEEK_API_KEY 读取，
-// 不会出现在前端代码里，绝不暴露。
+// DeepSeek 通用代理：转发到 DeepSeek API，Key 只从环境变量读取，绝不暴露。
+// 支持纯文本与多模态（deepseek-v4-flash-vision-exp）消息。
 
 const DEEPSEEK_API_URL = 'https://api.deepseek.com/chat/completions';
-const ALLOWED_MODELS = new Set(['deepseek-chat', 'deepseek-reasoner']);
+const DEFAULT_MODELS = new Set(['deepseek-chat', 'deepseek-reasoner', 'deepseek-v4-flash-vision-exp', 'deepseek-flash']);
 const MAX_MESSAGES = 30;
-const MAX_CONTENT_LENGTH = 8000;
+const MAX_CONTENT_LENGTH = 20000;
 
 function json(headers, status, obj) {
   return new Response(JSON.stringify(obj), {
@@ -22,21 +21,20 @@ export async function onRequest(context) {
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Headers': 'Content-Type, X-Access-Code',
   };
 
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { status: 204, headers: corsHeaders });
-  }
-  if (req.method !== 'POST') {
-    return json(corsHeaders, 405, { error: 'Method not allowed' });
-  }
+  if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: corsHeaders });
+  if (req.method !== 'POST') return json(corsHeaders, 405, { error: 'Method not allowed' });
 
   const apiKey = context.env.DEEPSEEK_API_KEY;
   if (!apiKey) {
-    return json(corsHeaders, 500, {
-      error: '服务端未配置 DEEPSEEK_API_KEY，请到 EdgeOne Pages 项目设置中添加环境变量。',
-    });
+    return json(corsHeaders, 500, { error: '服务端未配置 DEEPSEEK_API_KEY，请到项目设置中添加环境变量。' });
+  }
+
+  const accessCode = context.env.ACCESS_CODE;
+  if (accessCode && req.headers.get('x-access-code') !== accessCode) {
+    return json(corsHeaders, 401, { error: '访问口令不正确' });
   }
 
   let body;
@@ -55,45 +53,35 @@ export async function onRequest(context) {
   }
 
   const sanitized = messages
-    .map((m) => ({
-      role: m.role === 'system' || m.role === 'user' || m.role === 'assistant' ? m.role : 'user',
-      content: typeof m.content === 'string' ? m.content.slice(0, MAX_CONTENT_LENGTH) : '',
-    }))
-    .filter((m) => m.content.length > 0);
+    .map((m) => {
+      const role = m.role === 'system' || m.role === 'user' || m.role === 'assistant' ? m.role : 'user';
+      let content = m.content;
+      if (typeof content === 'string') content = content.slice(0, MAX_CONTENT_LENGTH);
+      return { role, content };
+    })
+    .filter((m) => m.content !== undefined && m.content !== '');
 
-  if (sanitized.length === 0) {
-    return json(corsHeaders, 400, { error: '消息内容为空' });
-  }
+  if (sanitized.length === 0) return json(corsHeaders, 400, { error: '消息内容为空' });
 
-  const model = ALLOWED_MODELS.has(body.model) ? body.model : 'deepseek-chat';
-  const temperature =
-    typeof body.temperature === 'number' ? Math.min(Math.max(body.temperature, 0), 2) : 0.7;
+  let model = typeof body.model === 'string' && DEFAULT_MODELS.has(body.model) ? body.model : 'deepseek-chat';
+  if (context.env.DEEPSEEK_CHAT_MODEL) model = context.env.DEEPSEEK_CHAT_MODEL;
 
-  const payload = {
-    model,
-    messages: sanitized,
-    stream: true,
-    temperature,
-  };
+  const temperature = typeof body.temperature === 'number' ? Math.min(Math.max(body.temperature, 0), 2) : 0.7;
+  const payload = { model, messages: sanitized, stream: true, temperature };
+  if (typeof body.max_tokens === 'number') payload.max_tokens = Math.min(Math.max(body.max_tokens, 1), 8192);
 
   try {
     const upstream = await fetch(DEEPSEEK_API_URL, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
       body: JSON.stringify(payload),
     });
 
     if (!upstream.ok) {
       const errText = await upstream.text();
-      return json(corsHeaders, upstream.status, {
-        error: `DeepSeek 接口错误(${upstream.status}): ${errText.slice(0, 500)}`,
-      });
+      return json(corsHeaders, upstream.status, { error: `DeepSeek 接口错误(${upstream.status}): ${errText.slice(0, 500)}` });
     }
 
-    // 把 DeepSeek 的 SSE 流原样透传给前端
     return new Response(upstream.body, {
       status: 200,
       headers: {
