@@ -100,7 +100,15 @@
   .detail-head .back { border: none; background: var(--accent-soft); color: var(--accent); width: 34px; height: 34px; border-radius: 10px; font-size: 17px; cursor: pointer; }
   .detail-head h2 { font-size: 15px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .detail-head a { color: var(--accent); font-size: 12.5px; text-decoration: none; font-weight: 600; flex: none; }
-  .detail-scroll { flex: 1; overflow-y: auto; padding: 16px 16px calc(30px + env(safe-area-inset-bottom)); -webkit-overflow-scrolling: touch; }
+  .btn-del {
+    flex: none; border: 1px solid #f3d3d3; background: #fff; color: var(--err);
+    border-radius: 10px; padding: 8px 12px; font-size: 12.5px; font-weight: 600; cursor: pointer;
+  }
+  .btn-del:disabled { opacity: .5; cursor: not-allowed; }
+  .detail-scroll {
+    flex: 1; overflow-y: auto; padding: 16px 16px calc(30px + env(safe-area-inset-bottom)); -webkit-overflow-scrolling: touch;
+    width: 100%; max-width: 760px; margin: 0 auto;
+  }
   .detail-img { width: 100%; border-radius: var(--radius); border: 1px solid var(--line); background: #fff; }
   .section { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; margin-top: 12px; }
   .section h3 { font-size: 13px; color: var(--dim); font-weight: 600; margin-bottom: 10px; }
@@ -139,6 +147,27 @@
     border-radius: 12px; padding: 11px; font-size: 14px; cursor: pointer; font-family: inherit; font-weight: 600;
   }
   .btn-retry:disabled { opacity: .5; cursor: not-allowed; }
+
+  /* 确认弹窗 */
+  .modal-mask {
+    position: fixed; inset: 0; z-index: 60; background: rgba(20,24,40,.45);
+    display: flex; align-items: center; justify-content: center; padding: 24px;
+  }
+  .modal-mask[hidden] { display: none; }
+  .modal {
+    width: 100%; max-width: 340px; background: var(--panel); border-radius: 16px; padding: 20px;
+    box-shadow: 0 12px 40px rgba(20,24,40,.25);
+  }
+  .modal h3 { font-size: 16px; margin-bottom: 6px; }
+  .modal p { font-size: 13px; color: var(--dim); line-height: 1.6; margin-bottom: 14px; }
+  .modal .row { display: flex; flex-direction: column; gap: 8px; }
+  .modal button {
+    border: none; border-radius: 11px; padding: 11px; font-size: 14px; font-weight: 600;
+    cursor: pointer; font-family: inherit;
+  }
+  .modal .danger { background: var(--err); color: #fff; }
+  .modal .danger-soft { background: #fdecec; color: var(--err); }
+  .modal .cancel { background: #f2f4f9; color: var(--ink); }
 </style>
 </head>
 <body>
@@ -168,6 +197,7 @@
     <button class="back" id="detailBack" aria-label="返回">‹</button>
     <h2 id="detailTitle">笔记</h2>
     <a id="feishuLink" href="#" target="_blank" rel="noopener noreferrer" hidden>在飞书中打开 ↗</a>
+    <button class="btn-del" id="detailDel">删除</button>
   </div>
   <div class="detail-scroll">
     <img class="detail-img" id="detailImg" alt="笔记原图">
@@ -184,6 +214,18 @@
       </div>
       <div id="syncHint"></div>
       <button class="btn-retry" id="retryBtn" hidden>重新同步到飞书</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-mask" id="deleteModal" hidden>
+  <div class="modal">
+    <h3>删除这篇笔记？</h3>
+    <p id="deleteModalDesc">删除后将无法恢复。</p>
+    <div class="row">
+      <button class="danger" id="delBoth">同时删除飞书文档</button>
+      <button class="danger-soft" id="delLocal">仅删除本地</button>
+      <button class="cancel" id="delCancel">取消</button>
     </div>
   </div>
 </div>
@@ -357,6 +399,36 @@
     $('detailView').hidden = true;
     selected = null;
     document.body.style.overflow = '';
+  }
+
+  // ---- 删除 ----
+  function openDeleteModal() {
+    if (!selected) return;
+    const synced = selected.status === 'synced' && !!(selected.doc_id || selected.wiki_url);
+    $('delBoth').hidden = !synced;
+    $('deleteModalDesc').textContent = synced
+      ? '删除后将无法恢复。这篇笔记已同步到飞书，是否同时删除飞书文档？'
+      : '删除后将无法恢复。';
+    $('deleteModal').hidden = false;
+  }
+  function closeDeleteModal() { $('deleteModal').hidden = true; }
+
+  async function doDelete(sync) {
+    if (!selected) return;
+    closeDeleteModal();
+    busy = true;
+    setBusyUI(true, '正在删除…');
+    try {
+      await apiJson('/api/notes/' + selected.id + '?sync=' + (sync ? 1 : 0), { method: 'DELETE' });
+      notice(sync ? '已删除，飞书文档也已删除' : '已删除', 'ok');
+      closeDetail();
+      await refresh();
+    } catch (e) {
+      notice(e.message || '删除失败，请重试', 'err');
+    } finally {
+      busy = false;
+      setBusyUI(false, '');
+    }
   }
 
   function renderSyncHint() {
@@ -560,6 +632,10 @@
   $('fileInput').onchange = (e) => upload(e.target.files && e.target.files[0]);
   $('searchInput').oninput = () => renderList();
   $('detailBack').onclick = closeDetail;
+  $('detailDel').onclick = openDeleteModal;
+  $('delBoth').onclick = () => doDelete(true);
+  $('delLocal').onclick = () => doDelete(false);
+  $('delCancel').onclick = closeDeleteModal;
   $('chatSend').onclick = sendRevise;
   $('chatInput').onkeydown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); sendRevise(); }

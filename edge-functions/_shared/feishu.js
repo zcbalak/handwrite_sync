@@ -255,6 +255,27 @@ export async function syncToFeishu(env, bytes, mime, filename, text, title, note
   return { doc_id: doc, wiki_url: wikiUrl, image_block_id: block };
 }
 
+// 删除飞书文档：优先删除知识库节点（从 wiki_url 反查 space_id）；无节点信息时兜底直接删文档
+export async function deleteFeishuDoc(note, env) {
+  if (!note || (!note.doc_id && !note.wiki_url)) return false;
+  const auth = await tenantToken(env);
+  const nodeMatch = /\/wiki\/([A-Za-z0-9]+)/.exec(note.wiki_url || '');
+  if (nodeMatch) {
+    const nodeToken = nodeMatch[1];
+    const target = await feishu('/wiki/v2/spaces/get_node?' + new URLSearchParams({ token: nodeToken, obj_type: 'wiki' }), auth);
+    const spaceId = target.node && target.node.space_id;
+    if (spaceId) {
+      await feishu(`/wiki/v2/spaces/${spaceId}/nodes/${nodeToken}`, auth, { method: 'DELETE' });
+      return true;
+    }
+  }
+  if (note.doc_id) {
+    await feishu(`/docx/v1/documents/${note.doc_id}`, auth, { method: 'DELETE' });
+    return true;
+  }
+  return false;
+}
+
 // 对话修改排版：在原图之后追加新内容，再删除旧文字块（原图始终保留）
 export async function reviseFeishu(note, markdown, env) {
   const auth = await tenantToken(env);

@@ -4,7 +4,7 @@
 import { kv, json } from './kv.js';
 import { blob } from './blob.js';
 import { transcribe, reviseMarkdown } from './deepseek.js';
-import { syncToFeishu, reviseFeishu, titleWithDate } from './feishu.js';
+import { syncToFeishu, reviseFeishu, titleWithDate, deleteFeishuDoc } from './feishu.js';
 
 const cleanId = (uuid) => uuid.replace(/-/g, '');
 
@@ -110,6 +110,24 @@ export async function reviseNote(env, id, instruction) {
   note.text = edited.markdown;
   await saveNote(env, note);
   return { status: 200, body: json(200, { text: edited.markdown }) };
+}
+
+// 删除笔记：syncFeishu=true 时先删飞书文档（失败则整体中止，本地不删）；
+// 之后删除本地元数据与原图，并更新列表
+export async function deleteNote(env, id, syncFeishu) {
+  const note = await getNote(env, id);
+  if (!note) throw new Error('笔记不存在');
+  let feishuDeleted = false;
+  if (syncFeishu) {
+    feishuDeleted = await deleteFeishuDoc(note, env);
+  }
+  await kv(env).delete(`note_${id}`);
+  await blob(env).delete(`img_${id}`);
+  const store = kv(env);
+  const raw = await store.get(listKey);
+  const ids = raw ? JSON.parse(raw) : [];
+  await store.put(listKey, JSON.stringify(ids.filter((x) => x !== id)));
+  return { feishu_deleted: feishuDeleted };
 }
 
 export { titleWithDate };
