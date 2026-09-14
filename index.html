@@ -90,6 +90,8 @@
     position: fixed; inset: 0; z-index: 40; background: var(--bg);
     display: flex; flex-direction: column; overflow: hidden;
   }
+  /* hidden 属性必须生效，否则详情页全屏遮罩会一直盖住列表页 */
+  .detail[hidden] { display: none; }
   .detail-head {
     flex: none; display: flex; align-items: center; gap: 10px;
     padding: 12px 16px; padding-top: calc(12px + env(safe-area-inset-top));
