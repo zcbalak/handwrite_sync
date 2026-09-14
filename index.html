@@ -137,23 +137,6 @@
     border-radius: 12px; padding: 11px; font-size: 14px; cursor: pointer; font-family: inherit; font-weight: 600;
   }
   .btn-retry:disabled { opacity: .5; cursor: not-allowed; }
-
-  /* 访问口令 */
-  .gate {
-    position: fixed; inset: 0; z-index: 60; background: var(--bg); display: flex; align-items: center; justify-content: center; padding: 24px;
-  }
-  .gate-card { width: 100%; max-width: 360px; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 24px; }
-  .gate-card h2 { font-size: 18px; margin-bottom: 6px; }
-  .gate-card p { font-size: 13px; color: var(--dim); margin-bottom: 14px; }
-  .gate-card input {
-    width: 100%; border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px; font-size: 15px; outline: none;
-  }
-  .gate-card input:focus { border-color: var(--accent); }
-  .gate-card button {
-    width: 100%; margin-top: 10px; border: none; background: var(--accent); color: #fff; border-radius: 10px;
-    padding: 11px; font-size: 14px; font-weight: 600; cursor: pointer;
-  }
-  .gate-err { color: var(--err); font-size: 12.5px; margin-top: 8px; }
 </style>
 </head>
 <body>
@@ -203,23 +186,11 @@
   </div>
 </div>
 
-<div class="gate" id="gateView" hidden>
-  <div class="gate-card">
-    <h2>访问口令</h2>
-    <p>该应用设置了访问口令，请输入后使用。</p>
-    <input type="password" id="codeInput" placeholder="输入访问口令" autocomplete="off">
-    <button id="codeSubmit">进入</button>
-    <div class="gate-err" id="gateErr"></div>
-  </div>
-</div>
-
 <script>
 (function () {
   'use strict';
   const $ = (id) => document.getElementById(id);
-  const ACCESS_KEY = 'handwrite-access-code';
-  let accessCode = sessionStorage.getItem(ACCESS_KEY) || '';
-  let config = { feishuConfigured: false, deepseekConfigured: false, kvConfigured: false, accessRequired: false, accessOk: false };
+  let config = { feishuConfigured: false, deepseekConfigured: false, kvConfigured: false };
   let notes = [];
   let selected = null;
   let busy = false;
@@ -228,13 +199,7 @@
 
   // ---- 网络层 ----
   async function api(path, options = {}) {
-    const headers = { ...(options.headers || {}) };
-    if (accessCode) headers['X-Access-Code'] = accessCode;
-    const res = await fetch(path, { ...options, headers });
-    if (res.status === 401) {
-      const body = await res.json().catch(() => ({}));
-      if (body.error === '访问口令不正确') { showGate(); throw new Error('访问口令不正确'); }
-    }
+    const res = await fetch(path, options);
     return res;
   }
   async function apiJson(path, options = {}) {
@@ -251,7 +216,6 @@
       config = { ...config, ...body };
     } catch (e) { /* 网络失败时保持默认 */ }
     renderStatus();
-    if (config.accessRequired && !config.accessOk && !accessCode) showGate();
   }
 
   function renderStatus() {
@@ -475,23 +439,6 @@
     }
   }
 
-  // ---- 访问口令 ----
-  function showGate() { $('gateView').hidden = false; $('codeInput').focus(); }
-  async function submitCode() {
-    const code = $('codeInput').value.trim();
-    if (!code) return;
-    accessCode = code;
-    sessionStorage.setItem(ACCESS_KEY, code);
-    $('gateErr').textContent = '';
-    try {
-      const data = await apiJson('/api/config');
-      if (data.accessOk) { $('gateView').hidden = true; await loadConfig(); await refresh(); }
-      else { accessCode = ''; sessionStorage.removeItem(ACCESS_KEY); $('gateErr').textContent = '口令不正确'; }
-    } catch (e) {
-      $('gateErr').textContent = e.message || '验证失败';
-    }
-  }
-
   // ---- 工具 ----
   function notice(text, type) {
     const el = $('notice');
@@ -611,8 +558,6 @@
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); sendRevise(); }
   };
   $('retryBtn').onclick = retrySync;
-  $('codeSubmit').onclick = submitCode;
-  $('codeInput').onkeydown = (e) => { if (e.key === 'Enter') submitCode(); };
 
   // 加载 KaTeX（失败则数学以文本显示）
   (function loadKatex() {
@@ -628,9 +573,7 @@
 
   async function init() {
     await loadConfig();
-    if (!config.accessRequired || config.accessOk) {
-      try { await refresh(); } catch (e) { notice(e.message || '笔记暂时无法读取', 'err'); }
-    }
+    try { await refresh(); } catch (e) { notice(e.message || '笔记暂时无法读取', 'err'); }
   }
   init();
 })();

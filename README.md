@@ -39,7 +39,6 @@ CloudBase 网关（同一域名）: /api/* → 云函数 api
 | `FEISHU_APP_SECRET` | 飞书自建应用 App Secret | 是 |
 | `FEISHU_WIKI_NODE` | 飞书知识库节点 token（文档创建的位置），不填用默认值 | 否 |
 | `DEEPSEEK_THINKING` | 思考模式开关：`enabled` 打开，不填默认 `disabled`（更快更省） | 否 |
-| `ACCESS_CODE` | 可选。设置后访问需要口令（防止别人用你的额度） | 否 |
 
 密钥通过 `.env.local`（已 gitignore）配置，部署时由 CLI 注入云函数环境变量，不会进 Git。
 
@@ -60,7 +59,6 @@ TCB_ENV_ID=你的环境ID
 DEEPSEEK_API_KEY=sk-xxxx
 FEISHU_APP_ID=cli_xxxx
 FEISHU_APP_SECRET=你的secret
-ACCESS_CODE=12345            # 可选：访问口令
 DEEPSEEK_THINKING=disabled   # 可选：enabled 打开思考模式
 # FEISHU_WIKI_NODE=知识库节点token   # 可选，默认用代码内置节点
 EOF

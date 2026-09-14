@@ -1,10 +1,8 @@
 // 笔记列表 / 上传新笔记
-import { checkAccess, json } from '../_shared/kv.js';
+import { json } from '../_shared/kv.js';
 import { createNote, listNotes, processNote } from '../_shared/core.js';
 
 export async function onRequestGet(context) {
-  const denied = checkAccess(context.env, context.request);
-  if (denied) return json(401, denied);
   try {
     const notes = await listNotes(context.env);
     return json(200, { notes });
@@ -14,8 +12,6 @@ export async function onRequestGet(context) {
 }
 
 export async function onRequestPost(context) {
-  const denied = checkAccess(context.env, context.request);
-  if (denied) return json(401, denied);
   let file;
   try {
     const ct = context.request.headers.get('content-type') || '';

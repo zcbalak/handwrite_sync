@@ -42,14 +42,7 @@ function blobKV(env) {
   return blobKVInstance;
 }
 
-// 访问口令（可选）：设置了 ACCESS_CODE 环境变量后，所有 API 需要携带 X-Access-Code 头。
-export function checkAccess(env, request) {
-  const code = env.ACCESS_CODE;
-  if (!code) return null;
-  const given = request.headers.get('x-access-code') || '';
-  if (given !== code) return { error: '访问口令不正确' };
-  return null;
-}
+// 访问口令已完全移除：所有请求直接放行（用户要求）
 
 export function json(status, obj, extraHeaders = {}) {
   return new Response(JSON.stringify(obj), {

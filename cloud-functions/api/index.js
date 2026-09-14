@@ -14,14 +14,7 @@ function json(status, obj, extraHeaders = {}) {
   };
 }
 
-// 访问口令：设置了 ACCESS_CODE 后，所有请求必须带 X-Access-Code 请求头
-function checkAccess(headers) {
-  const code = env().ACCESS_CODE;
-  if (!code) return null;
-  const given = headers['x-access-code'] || headers['X-Access-Code'] || headers['x_access_code'];
-  if (!given || given !== code) return { error: '访问口令不正确' };
-  return null;
-}
+// 访问口令已完全移除（用户要求）：所有请求直接放行
 
 function parseBody(event) {
   if (!event.body) return {};
@@ -45,8 +38,6 @@ function apiConfig() {
     // 存储始终可用：云数据库（元数据）+ 云存储（原图）
     kvConfigured: true,
     storageMode: 'cloudbase',
-    accessRequired: !!e.ACCESS_CODE,
-    accessOk: !e.ACCESS_CODE,
   });
 }
 
@@ -184,11 +175,7 @@ exports.main = async function main(event) {
   const headers = event.headers || {};
 
   // 路由：按前缀分派，与 EdgeOne 版 /api/... 保持同一契约
-  // /api/config 免口令（前端靠它判断是否弹出口令框）
   if (path === '/api/config') return apiConfig();
-
-  const denied = checkAccess(headers);
-  if (denied) return json(401, denied);
 
   if (path === '/api/chat' && method === 'POST') return chatHandler(event);
 

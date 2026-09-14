@@ -1,10 +1,8 @@
 // 对话修改排版
-import { checkAccess, json } from '../../../_shared/kv.js';
+import { json } from '../../../_shared/kv.js';
 import { reviseNote } from '../../../_shared/core.js';
 
 export async function onRequestPost(context) {
-  const denied = checkAccess(context.env, context.request);
-  if (denied) return json(401, denied);
   const body = await context.request.json().catch(() => null);
   const instruction = typeof body?.instruction === 'string' ? body.instruction.trim() : '';
   if (!instruction || instruction.length > 1000) {

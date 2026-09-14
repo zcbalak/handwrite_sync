@@ -15,7 +15,6 @@
         "FEISHU_APP_ID": "{{env.FEISHU_APP_ID}}",
         "FEISHU_APP_SECRET": "{{env.FEISHU_APP_SECRET}}",
         "FEISHU_WIKI_NODE": "{{env.FEISHU_WIKI_NODE}}",
-        "ACCESS_CODE": "{{env.ACCESS_CODE}}",
         "DEEPSEEK_THINKING": "{{env.DEEPSEEK_THINKING}}"
       }
     }

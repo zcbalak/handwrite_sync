@@ -67,8 +67,8 @@ async function run() {
   assert.strictEqual(res.statusCode, 200);
   let c = jsonOf(res);
   assert.strictEqual(c.storageMode, 'cloudbase');
-  assert.strictEqual(c.accessRequired, false);
   assert.strictEqual(c.deepseekConfigured, false);
+  assert.strictEqual(c.accessRequired, undefined);
   console.log('✓ /api/config 返回正确（storageMode=cloudbase, 无密钥）');
 
   // 2. 上传笔记（无 DeepSeek Key → pending + error）
@@ -110,18 +110,18 @@ async function run() {
   assert.strictEqual(res.statusCode, 409);
   console.log('✓ 未同步时 revise 返回 409');
 
-  // 7. 口令：设置 ACCESS_CODE 后，未带头 → 401，带头 → 200
+  // 7. 访问口令已完全移除：无任何口令要求，请求直接放行
   process.env.ACCESS_CODE = '12345';
   res = await main(ev('/api/config'));
   assert.strictEqual(res.statusCode, 200);
-  assert.strictEqual(jsonOf(res).accessRequired, true);
+  assert.strictEqual(jsonOf(res).accessRequired, undefined);
   res = await main(ev('/api/notes'));
-  assert.strictEqual(res.statusCode, 401);
+  assert.strictEqual(res.statusCode, 200);
   res = await main(ev('/api/notes', 'GET', { 'X-Access-Code': '12345' }));
   assert.strictEqual(res.statusCode, 200);
   res = await main(ev('/api/notes', 'GET', { 'X-Access-Code': 'wrong' }));
-  assert.strictEqual(res.statusCode, 401);
-  console.log('✓ 口令门：config 免口令、错误口令 401、正确口令放行');
+  assert.strictEqual(res.statusCode, 200);
+  console.log('✓ 口令已移除：配置了 ACCESS_CODE 也不拦截任何请求');
   process.env.ACCESS_CODE = '';
 
   // 8. 404

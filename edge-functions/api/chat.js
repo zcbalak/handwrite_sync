@@ -21,7 +21,7 @@ export async function onRequest(context) {
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, X-Access-Code',
+    'Access-Control-Allow-Headers': 'Content-Type',
   };
 
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: corsHeaders });
@@ -30,11 +30,6 @@ export async function onRequest(context) {
   const apiKey = context.env.DEEPSEEK_API_KEY;
   if (!apiKey) {
     return json(corsHeaders, 500, { error: '服务端未配置 DEEPSEEK_API_KEY，请到项目设置中添加环境变量。' });
-  }
-
-  const accessCode = context.env.ACCESS_CODE;
-  if (accessCode && req.headers.get('x-access-code') !== accessCode) {
-    return json(corsHeaders, 401, { error: '访问口令不正确' });
   }
 
   let body;

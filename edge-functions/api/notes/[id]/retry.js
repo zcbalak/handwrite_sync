@@ -1,10 +1,8 @@
 // 重新同步到飞书
-import { checkAccess, json } from '../../../_shared/kv.js';
+import { json } from '../../../_shared/kv.js';
 import { getNote, processNote } from '../../../_shared/core.js';
 
 export async function onRequestPost(context) {
-  const denied = checkAccess(context.env, context.request);
-  if (denied) return json(401, denied);
   const id = context.params.id;
   const note = await getNote(context.env, id);
   if (!note) return json(404, { error: '笔记不存在' });
