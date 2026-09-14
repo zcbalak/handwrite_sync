@@ -1,7 +1,9 @@
-// Vercel Serverless 中转函数（Edge Runtime）
-// 作用：前端 -> /api/chat -> DeepSeek API
-// DeepSeek API Key 只从服务端环境变量 DEEPSEEK_API_KEY 读取，永远不会暴露到浏览器。
-export const config = { runtime: 'edge' };
+// 文件路径 ./edge-functions/api/chat.js
+// 访问路径 example.com/api/chat
+//
+// EdgeOne Pages 边缘函数：把前端请求转发到 DeepSeek API。
+// DeepSeek API Key 只从 Pages 环境变量 DEEPSEEK_API_KEY 读取，
+// 不会出现在前端代码里，绝不暴露。
 
 const DEEPSEEK_API_URL = 'https://api.deepseek.com/chat/completions';
 const ALLOWED_MODELS = new Set(['deepseek-chat', 'deepseek-reasoner']);
@@ -15,7 +17,8 @@ function json(headers, status, obj) {
   });
 }
 
-export default async function handler(req) {
+export async function onRequest(context) {
+  const req = context.request;
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
@@ -29,10 +32,10 @@ export default async function handler(req) {
     return json(corsHeaders, 405, { error: 'Method not allowed' });
   }
 
-  const apiKey = process.env.DEEPSEEK_API_KEY;
+  const apiKey = context.env.DEEPSEEK_API_KEY;
   if (!apiKey) {
     return json(corsHeaders, 500, {
-      error: '服务端未配置 DEEPSEEK_API_KEY，请到 Vercel 项目设置中配置环境变量。',
+      error: '服务端未配置 DEEPSEEK_API_KEY，请到 EdgeOne Pages 项目设置中添加环境变量。',
     });
   }
 

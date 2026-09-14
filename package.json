@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "DeepSeek 网页聊天 · Vercel Serverless 中转，API Key 保存在服务端环境变量",
+  "description": "DeepSeek 网页聊天 · 腾讯云 EdgeOne Pages 边缘函数中转，API Key 保存在服务端环境变量",
   "scripts": {
     "dev": "node scripts/dev-server.mjs"
   }

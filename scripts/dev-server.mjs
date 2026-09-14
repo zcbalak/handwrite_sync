@@ -10,7 +10,7 @@ import http from 'node:http';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import handler from '../api/chat.js';
+import { onRequest } from '../edge-functions/api/chat.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
@@ -38,7 +38,7 @@ const server = http.createServer(async (req, res) => {
         headers: req.headers,
         body: req.method === 'POST' && body.length ? body : undefined,
       });
-      const response = await handler(request);
+      const response = await onRequest({ request, env: process.env });
       res.writeHead(response.status, Object.fromEntries(response.headers));
       if (response.body) {
         const reader = response.body.getReader();
