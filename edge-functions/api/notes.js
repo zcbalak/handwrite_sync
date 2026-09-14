@@ -1,6 +1,7 @@
 // 笔记列表 / 上传新笔记
 import { json } from '../_shared/kv.js';
 import { createNote, listNotes, processNote } from '../_shared/core.js';
+import { readBody, base64ToBytes } from '../_shared/body.js';
 
 export async function onRequestGet(context) {
   try {
@@ -12,32 +13,26 @@ export async function onRequestGet(context) {
 }
 
 export async function onRequestPost(context) {
-  let file;
+  // 请求体统一走 text() + 手动解析，规避运行时缺失的 json()/formData()/atob/File
+  let payload;
   try {
-    const ct = context.request.headers.get('content-type') || '';
-    if (ct.includes('application/json')) {
-      const payload = await context.request.json();
-      const match = /^data:([^;,]+);base64,(.+)$/.exec(payload.image || '');
-      if (match) {
-        const binary = atob(match[2]);
-        const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
-        file = new File([bytes], (payload.filename || 'note.jpg').replace(/[^a-zA-Z0-9._-]/g, '_') || 'note.jpg', { type: match[1] });
-      }
-    }
-    if (!file) file = (await context.request.formData()).get('image');
+    payload = JSON.parse(await readBody(context.request));
   } catch {
     return json(400, { error: '无法读取上传的图片' });
   }
-  if (!(file instanceof File) || !['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+  const match = /^data:([^;,]+);base64,(.+)$/.exec(payload.image || '');
+  if (!match) return json(400, { error: '无法读取上传的图片' });
+  const mime = match[1];
+  const bytes = base64ToBytes(match[2]);
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(mime)) {
     return json(400, { error: '请上传 JPG、PNG 或 WebP 图片' });
   }
-  if (file.size === 0 || file.size > 10 * 1024 * 1024) {
+  if (bytes.length === 0 || bytes.length > 10 * 1024 * 1024) {
     return json(400, { error: '图片需要小于 10 MB' });
   }
-  const bytes = await file.arrayBuffer();
-  const filename = (file.name || 'note.jpg').replace(/[^a-zA-Z0-9._-]/g, '_') || 'note.jpg';
+  const filename = (payload.filename || 'note.jpg').replace(/[^a-zA-Z0-9._-]/g, '_') || 'note.jpg';
   try {
-    const note = await createNote(context.env, bytes, file.type, filename);
+    const note = await createNote(context.env, bytes, mime, filename);
     try {
       const result = await processNote(context.env, note.id);
       return json(200, { id: note.id, ...result });

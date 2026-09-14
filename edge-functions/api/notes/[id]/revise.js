@@ -1,9 +1,11 @@
 // 对话修改排版
 import { json } from '../../../_shared/kv.js';
 import { reviseNote } from '../../../_shared/core.js';
+import { readBody } from '../../../_shared/body.js';
 
 export async function onRequestPost(context) {
-  const body = await context.request.json().catch(() => null);
+  let body = null;
+  try { body = JSON.parse(await readBody(context.request)); } catch (e) { /* ignore */ }
   const instruction = typeof body?.instruction === 'string' ? body.instruction.trim() : '';
   if (!instruction || instruction.length > 1000) {
     return json(400, { error: '请输入 1–1000 字的修改要求' });

@@ -283,19 +283,24 @@
       const url = URL.createObjectURL(file);
       img.onload = () => {
         try {
-          const MAX = 1600;
-          let { width, height } = img;
-          const scale = Math.min(1, MAX / Math.max(width, height));
-          width = Math.round(width * scale);
-          height = Math.round(height * scale);
-          const canvas = document.createElement('canvas');
-          canvas.width = width;
-          canvas.height = height;
-          canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-          try { resolve(canvas.toDataURL('image/jpeg', 0.82)); }
-          catch (e) { reject(new Error('图片压缩失败')); }
-          finally { URL.revokeObjectURL(url); }
-        } catch (e) { URL.revokeObjectURL(url); reject(e); }
+          // 两遍压缩：EdgeOne 函数请求体上限 1MB（base64 JSON 需留余量）
+          const pass = (max, quality) => {
+            let { width, height } = img;
+            const scale = Math.min(1, max / Math.max(width, height));
+            width = Math.round(width * scale);
+            height = Math.round(height * scale);
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+            return canvas.toDataURL('image/jpeg', quality);
+          };
+          let dataUrl = pass(1400, 0.72);
+          if (dataUrl.length > 900 * 1024) dataUrl = pass(1000, 0.6);
+          if (!dataUrl || dataUrl.length > 1000 * 1024) throw new Error('图片压缩后仍超过大小限制');
+          resolve(dataUrl);
+        } catch (e) { reject(new Error('图片压缩失败')); }
+        finally { URL.revokeObjectURL(url); }
       };
       img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('无法读取图片')); };
       img.src = url;

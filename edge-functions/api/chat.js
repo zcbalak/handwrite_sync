@@ -4,6 +4,8 @@
 // DeepSeek 通用代理：转发到 DeepSeek API，Key 只从环境变量读取，绝不暴露。
 // 支持纯文本与多模态（deepseek-v4-flash-vision-exp）消息。
 
+import { readBody } from '../_shared/body.js';
+
 const DEEPSEEK_API_URL = 'https://api.deepseek.com/chat/completions';
 const DEFAULT_MODELS = new Set(['deepseek-chat', 'deepseek-reasoner', 'deepseek-v4-flash-vision-exp', 'deepseek-flash']);
 const MAX_MESSAGES = 30;
@@ -34,7 +36,7 @@ export async function onRequest(context) {
 
   let body;
   try {
-    body = await req.json();
+    body = JSON.parse(await readBody(req));
   } catch {
     return json(corsHeaders, 400, { error: '请求体不是合法的 JSON' });
   }

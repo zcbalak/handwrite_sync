@@ -23,9 +23,10 @@ export async function tenantToken(env) {
 }
 
 export async function feishu(path, token, init = {}) {
+  const hasForm = typeof FormData !== 'undefined' && init.body instanceof FormData;
   const headers = {
     Authorization: `Bearer ${token}`,
-    ...(init.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
+    ...(hasForm ? {} : { 'Content-Type': 'application/json' }),
     ...(init.headers || {}),
   };
   const response = await fetch(API + path, { ...init, headers });
@@ -222,16 +223,34 @@ export async function syncToFeishu(env, bytes, mime, filename, text, title, note
     if (!block) throw new Error('飞书图片块创建失败');
   }
 
-  const form = new FormData();
-  form.append('file_name', filename);
-  form.append('parent_type', 'docx_image');
-  form.append('parent_node', block);
-  form.append('size', String(bytes.byteLength));
-  form.append('file', new Blob([bytes], { type: mime }), filename);
-  const uploaded = await feishu('/drive/v1/medias/upload_all', auth, { method: 'POST', body: form });
+  // 手动构造 multipart 上传原图（不依赖 FormData/Blob，兼容 EdgeOne Pages 运行时）
+  const boundary = '----EO' + crypto.randomUUID().replace(/-/g, '');
+  const enc = (s) => new TextEncoder().encode(s);
+  const chunks = [
+    enc(`--${boundary}\r\nContent-Disposition: form-data; name="file_name"\r\n\r\n${filename}\r\n`),
+    enc(`--${boundary}\r\nContent-Disposition: form-data; name="parent_type"\r\n\r\ndocx_image\r\n`),
+    enc(`--${boundary}\r\nContent-Disposition: form-data; name="parent_node"\r\n\r\n${block}\r\n`),
+    enc(`--${boundary}\r\nContent-Disposition: form-data; name="size"\r\n\r\n${bytes.byteLength}\r\n`),
+    enc(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${filename}"\r\nContent-Type: ${mime}\r\n\r\n`),
+    new Uint8Array(bytes),
+    enc(`\r\n--${boundary}--\r\n`),
+  ];
+  const total = chunks.reduce((n, p) => n + p.length, 0);
+  const body = new Uint8Array(total);
+  let at = 0;
+  for (const p of chunks) { body.set(p, at); at += p.length; }
+  const response = await fetch(API + '/drive/v1/medias/upload_all', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${auth}`, 'Content-Type': `multipart/form-data; boundary=${boundary}` },
+    body,
+  });
+  const uploaded = await response.json();
+  if (!response.ok || uploaded.code !== 0) {
+    throw new Error(`飞书图片上传失败 ${uploaded.code}: ${uploaded.msg}`);
+  }
   await feishu(`/docx/v1/documents/${doc}/blocks/${block}`, auth, {
     method: 'PATCH',
-    body: JSON.stringify({ replace_image: { token: uploaded.file_token } }),
+    body: JSON.stringify({ replace_image: { token: uploaded.data.file_token } }),
   });
   return { doc_id: doc, wiki_url: wikiUrl, image_block_id: block };
 }
