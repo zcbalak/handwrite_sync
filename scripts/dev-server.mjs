@@ -39,6 +39,31 @@ function makeKV() {
 }
 globalThis.NOTES_KV = makeKV();
 
+// Blob 内存模拟（API 形状对齐 @edgeone/pages-blob：set/get/setJSON/delete/list）
+function makeBlob() {
+  const map = new Map();
+  return {
+    async set(key, value) {
+      map.set(key, value instanceof ReadableStream ? await new Response(value).arrayBuffer() : value);
+    },
+    async setJSON(key, value) { map.set(key, JSON.stringify(value)); },
+    async get(key, opts) {
+      if (!map.has(key)) return null;
+      const v = map.get(key);
+      if (opts && opts.type === 'json') return typeof v === 'string' ? JSON.parse(v) : v;
+      if (opts && opts.type === 'arrayBuffer') {
+        return typeof v === 'string' ? new TextEncoder().encode(v).buffer : v;
+      }
+      return typeof v === 'string' ? v : new TextDecoder().decode(v);
+    },
+    async delete(key) { map.delete(key); },
+    async list() {
+      return { blobs: [...map.keys()].map((key) => ({ key, etag: '' })), directories: [] };
+    },
+  };
+}
+globalThis.NOTES_BLOB = makeBlob(); // 原图 Blob 的内存模拟
+
 // ---- 动态路由表 ----
 const ROUTES = [
   { pattern: ['api', 'chat'], file: 'api/chat.js', params: [] },

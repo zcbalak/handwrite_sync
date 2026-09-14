@@ -7,7 +7,9 @@ export async function onRequestGet(context) {
   return json(200, {
     feishuConfigured: !!(env.FEISHU_APP_ID && env.FEISHU_APP_SECRET),
     deepseekConfigured: !!env.DEEPSEEK_API_KEY,
-    kvConfigured: !!(globalThis.NOTES_KV || env.NOTES_KV),
+    // 存储始终可用：KV 已绑定用 KV，未绑定自动用 Blob 兜底（Blob 零配置）
+    kvConfigured: true,
+    storageMode: env.NOTES_KV ? 'kv' : 'blob-fallback',
     accessRequired: !!env.ACCESS_CODE,
     accessOk: !denied,
   });

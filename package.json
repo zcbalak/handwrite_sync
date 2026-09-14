@@ -1,10 +1,13 @@
 {
-  "name": "deepseek-web",
+  "name": "handwrite-sync",
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "DeepSeek 网页聊天 · 腾讯云 EdgeOne Pages 边缘函数中转，API Key 保存在服务端环境变量",
+  "description": "手写笔记 · DeepSeek + 飞书知识库（EdgeOne Pages：边缘函数中转 + KV/Blob 存储）",
   "scripts": {
     "dev": "node scripts/dev-server.mjs"
+  },
+  "dependencies": {
+    "@edgeone/pages-blob": "0.0.16"
   }
 }

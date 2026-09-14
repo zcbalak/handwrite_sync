@@ -1,7 +1,8 @@
 // EdgeOne Pages 共享模块：笔记处理核心流程
-// 存储：KV（原 D1+R2 的替代），图片以二进制存 KV（前端已压缩，单值 < 1MB）
+// 存储：元数据 → KV（未绑定时 Blob 兜底）；原图 → Blob（单值上限 25MB）
 
 import { kv, json } from './kv.js';
+import { blob } from './blob.js';
 import { transcribe, reviseMarkdown } from './deepseek.js';
 import { syncToFeishu, reviseFeishu, titleWithDate } from './feishu.js';
 
@@ -59,8 +60,8 @@ export async function createNote(env, bytes, mime, filename) {
     error: null,
     created_at: created,
   };
-  const store = kv(env);
-  await store.put(`img_${id}`, bytes); // 原图（前端已压缩的高清 JPG）
+  const store = blob(env);
+  await store.set(`img_${id}`, bytes); // 原图存 Blob（25MB 上限，无需压缩到 1MB 以内）
   await saveNote(env, note);
   await pushId(env, id);
   return note;
@@ -68,12 +69,11 @@ export async function createNote(env, bytes, mime, filename) {
 
 // 识别 + 同步到飞书；任何一步失败都保留笔记为 pending 并记录错误，可重试
 export async function processNote(env, id) {
-  const store = kv(env);
   const note = await getNote(env, id);
   if (!note) throw new Error('笔记不存在');
   if (note.status === 'synced' && note.wiki_url) return { status: 'synced', wiki_url: note.wiki_url };
 
-  const stored = await store.get(`img_${id}`, { type: 'arrayBuffer' });
+  const stored = await blob(env).get(`img_${id}`, { type: 'arrayBuffer' });
   if (!stored) throw new Error('原图暂时无法读取');
   const bytes = stored;
 
