@@ -1,7 +1,9 @@
 // EdgeOne Pages 共享模块：DeepSeek API（视觉识别 + 排版修改）
+// 统一使用 deepseek-flash（支持图文 / 1M 上下文 / 思考模式开关）。
 // Key 只从环境变量 DEEPSEEK_API_KEY 读取。
 
 const API_URL = 'https://api.deepseek.com/chat/completions';
+const MODEL = 'deepseek-flash'; // 识别与排版共用，性价比最高的图文模型
 
 const transcription = '你是严谨的手写笔记转录助手。只保留照片中可辨认的内容，整理为清晰的 Markdown（标题、小节、段落、列表，确有需要时用 Markdown 表格）。保留原语言和推导顺序；数学表达用 $...$ 或 $$...$$ 的 LaTeX，绝不凭空补充证明，模糊内容标记 [字迹不清]。另根据内容概括一个不超过 24 字的简洁标题，不要包含日期。输出 JSON 对象，例如 {"title":"凸函数与次模性","markdown":"## 命题\\n..."}，不要代码围栏。';
 
@@ -23,11 +25,13 @@ function extractJson(content) {
   return JSON.parse(text.slice(start, end + 1));
 }
 
-async function call(apiKey, model, messages, extra = {}) {
+async function call(apiKey, env, messages, extra = {}) {
+  // 思考模式开关：DEEPSEEK_THINKING=enabled 打开，默认 disabled（更快更省）
+  const thinking = { type: env.DEEPSEEK_THINKING === 'enabled' ? 'enabled' : 'disabled' };
   const response = await fetch(API_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({ model, max_tokens: 8192, messages, ...extra }),
+    body: JSON.stringify({ model: MODEL, max_tokens: 8192, thinking, response_format: { type: 'json_object' }, messages, ...extra }),
   });
   const result = await response.json();
   if (!response.ok) {
@@ -51,9 +55,8 @@ async function call(apiKey, model, messages, extra = {}) {
 export async function transcribe(bytes, mime, env) {
   const apiKey = env.DEEPSEEK_API_KEY;
   if (!apiKey) throw new Error('请先配置 DeepSeek API Key（环境变量 DEEPSEEK_API_KEY）');
-  const model = env.DEEPSEEK_VISION_MODEL || 'deepseek-v4-flash-vision-exp';
   const base64 = bytesToBase64(bytes);
-  return call(apiKey, model, [
+  return call(apiKey, env, [
     { role: 'system', content: transcription },
     {
       role: 'user',
@@ -69,9 +72,8 @@ export async function transcribe(bytes, mime, env) {
 export async function reviseMarkdown(markdown, instruction, env) {
   const apiKey = env.DEEPSEEK_API_KEY;
   if (!apiKey) throw new Error('请先配置 DeepSeek API Key（环境变量 DEEPSEEK_API_KEY）');
-  const model = env.DEEPSEEK_CHAT_MODEL || 'deepseek-chat';
-  return call(apiKey, model, [
+  return call(apiKey, env, [
     { role: 'system', content: reviseSystem },
     { role: 'user', content: `当前 Markdown 笔记：\n${markdown}\n\n修改要求：${instruction}\n\n请返回完整更新后的 JSON。` },
-  ], { response_format: { type: 'json_object' } });
+  ]);
 }

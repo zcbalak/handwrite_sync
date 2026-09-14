@@ -20,7 +20,7 @@ EdgeOne Pages 边缘函数 (edge-functions/)
  └─ api/config        配置状态
         │
         ├─ Edge KV（NOTES_KV）：笔记元数据 + 原图二进制
-        ├─ DeepSeek API（deepseek-v4-flash-vision-exp 识别 / deepseek-chat 排版）
+        ├─ DeepSeek API（deepseek-flash：图文识别 + 排版，思考模式可开关）
         └─ 飞书开放平台：知识库建文档 + 写块/表格 + 上传原图
 ```
 
@@ -32,8 +32,7 @@ EdgeOne Pages 边缘函数 (edge-functions/)
 | `FEISHU_APP_SECRET` | 飞书自建应用 App Secret | 是 |
 | `DEEPSEEK_API_KEY` | DeepSeek API Key（platform.deepseek.com） | 是 |
 | `FEISHU_WIKI_NODE` | 飞书知识库节点 token（文档创建的位置），不填用默认值 | 否 |
-| `DEEPSEEK_VISION_MODEL` | 识别模型，默认 `deepseek-v4-flash-vision-exp` | 否 |
-| `DEEPSEEK_CHAT_MODEL` | 排版模型，默认 `deepseek-chat` | 否 |
+| `DEEPSEEK_THINKING` | 思考模式开关：`enabled` 打开，不填默认 `disabled`（更快更省） | 否 |
 | `ACCESS_CODE` | 可选。设置后访问需要口令（防止别人用你的额度） | 否 |
 
 ## 部署步骤
