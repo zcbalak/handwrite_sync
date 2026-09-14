@@ -47,10 +47,9 @@ export async function saveNote(env, note) {
 export async function createNote(env, bytes, mime, filename) {
   const id = newId();
   const created = new Date().toISOString();
-  const day = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(created));
   const note = {
     id,
-    title: `笔记 · ${day}`,
+    title: titleWithDate('笔记', created),
     text: '',
     mime,
     status: 'pending',
@@ -81,8 +80,9 @@ export async function processNote(env, id) {
   if (!note.text?.trim()) {
     result = await transcribe(bytes, note.mime, env);
     note.text = result.markdown;
-    note.title = result.title || note.title;
   }
+  // 标题统一追加年月日后缀（幂等：已有日期后缀会被替换）
+  note.title = titleWithDate(note.title || '手写笔记', note.created_at || new Date().toISOString());
 
   const filename = `note_${id}.jpg`;
   const synced = await syncToFeishu(env, bytes, note.mime, filename, note.text, note.title, note);

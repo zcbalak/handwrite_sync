@@ -42,7 +42,10 @@ export const defaultWikiNode = () => 'Rccuw5qndim133kO2TQcvHvcnSf';
 export function titleWithDate(title, created) {
   const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(created));
   const part = (type) => parts.find((item) => item.type === type)?.value || '';
-  return `${title.replace(/[\r\n#]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 48) || '手写笔记'} · ${part('year')}-${part('month')}-${part('day')}`;
+  const clean = title.replace(/[\r\n#]+/g, ' ').replace(/\s+/g, ' ')
+    .replace(/\s*·\s*\d{4}-\d{2}-\d{2}\s*$/, '') // 幂等：去掉已有日期后缀
+    .trim().slice(0, 48);
+  return `${clean || '手写笔记'} · ${part('year')}-${part('month')}-${part('day')}`;
 }
 
 // ---- Markdown -> 飞书文档块 ----
