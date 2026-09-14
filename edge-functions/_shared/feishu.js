@@ -3,6 +3,8 @@
 
 const API = 'https://open.feishu.cn/open-apis';
 
+import { parseResponseJson } from './body.js';
+
 export function feishuCredentials(env) {
   const appId = env.FEISHU_APP_ID;
   const appSecret = env.FEISHU_APP_SECRET;
@@ -17,7 +19,7 @@ export async function tenantToken(env) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ app_id: appId, app_secret: appSecret }),
   });
-  const data = await response.json();
+  const data = await parseResponseJson(response, '飞书授权');
   if (data.code !== 0) throw new Error('飞书授权失败: ' + data.msg);
   return data.tenant_access_token;
 }
@@ -30,7 +32,7 @@ export async function feishu(path, token, init = {}) {
     ...(init.headers || {}),
   };
   const response = await fetch(API + path, { ...init, headers });
-  const value = await response.json();
+  const value = await parseResponseJson(response, '飞书');
   if (!response.ok || value.code !== 0) {
     throw new Error(`飞书 ${value.code}: ${value.msg}（${init.method || 'GET'} ${path.split('?')[0]}）`);
   }
@@ -247,7 +249,7 @@ export async function syncToFeishu(env, bytes, mime, filename, text, title, note
     headers: { Authorization: `Bearer ${auth}`, 'Content-Type': `multipart/form-data; boundary=${boundary}` },
     body,
   });
-  const uploaded = await response.json();
+  const uploaded = await parseResponseJson(response, '飞书图片上传');
   if (!response.ok || uploaded.code !== 0) {
     throw new Error(`飞书图片上传失败 ${uploaded.code}: ${uploaded.msg}`);
   }

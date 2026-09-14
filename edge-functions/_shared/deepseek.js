@@ -2,7 +2,7 @@
 // 统一使用 deepseek-flash（支持图文 / 1M 上下文 / 思考模式开关）。
 // Key 只从环境变量 DEEPSEEK_API_KEY 读取。
 
-import { bytesToBase64 } from './body.js';
+import { bytesToBase64, parseResponseJson } from './body.js';
 
 const API_URL = 'https://api.deepseek.com/chat/completions';
 const MODEL = 'deepseek-flash'; // 识别与排版共用，性价比最高的图文模型
@@ -14,10 +14,29 @@ const reviseSystem = '你是笔记排版编辑。只根据用户的要求重排�
 function extractJson(content) {
   let text = content.trim();
   text = text.replace(/^```(?:json|markdown|md)?\s*\n?/i, '').replace(/\n?```\s*$/, '');
+  // 只取第一个完整 JSON 对象（括号配对，跳过字符串内的花括号），
+  // 兼容模型偶发返回重复/拼接 JSON 的情况
   const start = text.indexOf('{');
-  const end = text.lastIndexOf('}');
-  if (start < 0 || end <= start) throw new Error('DeepSeek 返回格式不正确，请重试');
-  return JSON.parse(text.slice(start, end + 1));
+  if (start < 0) throw new Error('DeepSeek 返回格式不正确，请重试');
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === '\\') escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') inString = true;
+    else if (ch === '{') depth++;
+    else if (ch === '}') {
+      depth--;
+      if (depth === 0) return JSON.parse(text.slice(start, i + 1));
+    }
+  }
+  throw new Error('DeepSeek 返回格式不正确，请重试');
 }
 
 async function call(apiKey, env, messages, extra = {}) {
@@ -28,7 +47,7 @@ async function call(apiKey, env, messages, extra = {}) {
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
     body: JSON.stringify({ model: MODEL, max_tokens: 8192, thinking, response_format: { type: 'json_object' }, messages, ...extra }),
   });
-  const result = await response.json();
+  const result = await parseResponseJson(response, 'DeepSeek');
   if (!response.ok) {
     throw new Error(
       response.status === 401 ? 'DeepSeek API Key 无效'

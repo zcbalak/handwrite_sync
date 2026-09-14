@@ -16,6 +16,16 @@ export async function readBody(request) {
   throw new Error('无法读取请求体');
 }
 
+// 解析 HTTP 响应为 JSON；失败时附带状态码与响应开头内容，便于定位是哪个接口
+export async function parseResponseJson(response, label) {
+  try {
+    return await response.json();
+  } catch (error) {
+    const raw = await response.text().catch(() => '');
+    throw new Error(`${label} 响应解析失败（HTTP ${response.status}）：${raw.slice(0, 160).replace(/\s+/g, ' ')}`);
+  }
+}
+
 const B64_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 
 // base64 字符串 -> Uint8Array（不依赖 atob）
